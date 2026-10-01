@@ -12,6 +12,7 @@ import { ProgressRing } from './charts';
 import PlanView from './PlanView';
 import ZoneMap from './ZoneMap';
 import { fetchPoint, renderHazardSnapshot, toPointCheck } from './hazard-snapshot';
+import { apiFetch } from './api';
 
 const navigation: { page: Page; label: string }[] = [
   { page: 'plan', label: 'Mi plan familiar' },
@@ -164,7 +165,7 @@ export default function App() {
     setLocating(true);
     navigator.geolocation.getCurrentPosition(async position => {
       try {
-        const response = await fetch('/api/location', {
+        const response = await apiFetch('/api/location', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ lat: Number(position.coords.latitude.toFixed(3)), lon: Number(position.coords.longitude.toFixed(3)) }),
           signal: AbortSignal.timeout(12000),
@@ -203,7 +204,7 @@ export default function App() {
     let checks: SourceCheck[] = [];
     let sourceError: string | undefined;
     try {
-      const response = await fetch('/api/sources/check', {
+      const response = await apiFetch('/api/sources/check', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ provinceCode: snapshot.provinceCode, risks: snapshot.risks, extra: planSourceIds(snapshot, point) }),
         signal: AbortSignal.timeout(20000),
@@ -249,7 +250,7 @@ export default function App() {
     let lat = point?.lat, lon = point?.lon;
     if (!point) {
       if (!h.municipalityCode) return undefined;
-      const response = await fetch('/api/maps/location', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ municipality: h.municipality, municipalityCode: h.municipalityCode, provinceCode: h.provinceCode }), signal: AbortSignal.timeout(16000) });
+      const response = await apiFetch('/api/maps/location', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ municipality: h.municipality, municipalityCode: h.municipalityCode, provinceCode: h.provinceCode }), signal: AbortSignal.timeout(16000) });
       if (!response.ok) return undefined;
       const found: MapLocation = await response.json();
       lat = found.lat; lon = found.lon;
@@ -290,7 +291,7 @@ export default function App() {
   const consultSources = async () => {
     setChecking(true); setCheckError(''); setSourceChecks([]);
     try {
-      const response = await fetch('/api/sources/check', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ regionId: sourceRegion, risks: ['flood', 'wildfire', 'earthquake'] }), signal: AbortSignal.timeout(20000) });
+      const response = await apiFetch('/api/sources/check', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ regionId: sourceRegion, risks: ['flood', 'wildfire', 'earthquake'] }), signal: AbortSignal.timeout(20000) });
       if (!response.ok) throw new Error('El servicio de consulta no está disponible.');
       const result = await response.json();
       setSourceChecks(result.checks);
@@ -419,7 +420,7 @@ export default function App() {
         <div className="prose-grid">
           <section><h2>Una guía de preparación, no de intervención</h2><p>{LOCATION_NOTICE}</p><p>{EMERGENCY_NOTICE}</p><p>El mapa representa la inundación fluvial cartografiada por el SNCZI, el índice científico FWI publicado por Copernicus/EFFIS y la peligrosidad sísmica probabilista del IGN (periodo de retorno de 475 años). No calcula probabilidades de incendio, no predice terremotos ni evalúa la vulnerabilidad de una vivienda. Sin color o sin datos no significa sin peligro.</p></section>
           <section><h2>Cómo se personaliza</h2><p>La guía aplica reglas editoriales transparentes a tus respuestas: por ejemplo, si vives en planta baja se priorizan los consejos oficiales sobre subir a plantas altas ante una inundación. Cada paso muestra por qué aparece y su fuente. Las sugerencias de organización que no proceden de un organismo se identifican como tales. No hay generación libre con inteligencia artificial.</p></section>
-          <section><h2>Tus datos se quedan contigo</h2><p>No hay cuentas, publicidad ni analítica. Los datos del hogar y los contactos permanecen en el navegador, salvo que decidas guardarlos localmente o descargar el PDF. Al crear una guía solo se envían la provincia y los escenarios para comprobar las fuentes.</p><p>Cuando indicas tu calle y número, o marcas un punto en el mapa, sus coordenadas (redondeadas a unos 10 m) se envían a este servidor para consultar el SNCZI (MITECO), EFFIS (Copernicus) y el IGN. No se guardan.</p></section>
+          <section><h2>Tus datos se quedan contigo</h2><p>No hay cuentas, publicidad ni analítica. Los datos del hogar y los contactos permanecen en el navegador, salvo que decidas guardarlos localmente o descargar el PDF. Al crear una guía solo se envían la provincia y los escenarios para comprobar las fuentes.</p><p>Cuando indicas tu calle y número, o marcas un punto en el mapa, sus coordenadas (redondeadas a unos 10 m) se usan para consultar el SNCZI (MITECO), EFFIS (Copernicus) y el IGN. No se guardan.</p></section>
           <section><h2>Cómo funciona la ubicación</h2><p>Puedes escribir municipio y provincia sin usar GPS. Si pulsas «Usar mi ubicación», se envían a CartoCiudad (IGN) coordenadas redondeadas a tres decimales para obtener el municipio, sin guardarlas.</p><a className="text-link" href="https://www.cartociudad.es/" target="_blank" rel="noreferrer">Conocer CartoCiudad <ExternalLink size={14} /></a></section>
         </div>
         <section className="card delete-card"><div><h2>Gestiona los datos de este dispositivo</h2><p className="muted">Borra la guía, las tareas marcadas y el kit. Los PDF descargados debes eliminarlos por separado.</p></div>{showDelete ? <div className="delete-confirm" role="group" aria-label="Confirmar borrado"><strong>¿Borrar los datos locales?</strong><button className="button danger" onClick={clearData}>Sí, borrar datos</button><button className="button ghost" onClick={() => setShowDelete(false)}>Cancelar</button></div> : <button className="button secondary" onClick={() => setShowDelete(true)}><Trash2 size={16} />Borrar mis datos locales</button>}</section>

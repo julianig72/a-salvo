@@ -4,6 +4,7 @@ import type { FloodPointResult, HomeAddress, MapCatalog, MapLayerId, MapLocation
 import { MAP_HEIGHT, MAP_WIDTH, mapBounds, metersPerPixel, project, unproject } from '../shared/map-math';
 import { EMS_DEGREES, EMS_SCALE_URL, emsLabel } from '../shared/seismic';
 import { FIRE_LEGEND, FLOOD_COLORS, fetchPoint, getCatalog, layerImageUrl, renderHazardSnapshot, toPointCheck, type PointResponse } from './hazard-snapshot';
+import { apiFetch } from './api';
 
 type Hazard = 'flood' | 'fire' | 'seismic';
 type LayerState = 'loading' | 'ready' | 'error';
@@ -81,7 +82,7 @@ export default function ZoneMap({ municipality, municipalityCode, provinceCode, 
     const timer = window.setTimeout(async () => {
       try {
         const [locationResponse, nextCatalog] = await Promise.all([
-          fetch('/api/maps/location', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ municipality, municipalityCode, provinceCode }), signal: AbortSignal.timeout(16000) }),
+          apiFetch('/api/maps/location', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ municipality, municipalityCode, provinceCode }), signal: AbortSignal.timeout(16000) }),
           getCatalog(),
         ]);
         const found = await locationResponse.json();

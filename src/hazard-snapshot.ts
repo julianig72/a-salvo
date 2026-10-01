@@ -1,6 +1,8 @@
 import { mapBounds, metersPerPixel } from '../shared/map-math';
 import { EMS_DEGREES, seismicSummary } from '../shared/seismic';
 import type { MapCatalog, MapLayerId, MapSnapshot, PointCheck } from '../shared/types';
+import { STATIC_MODE, apiFetch } from './api';
+import { buildMapUrl } from '../server/maps-core';
 
 export const FLOOD_COLORS = { flood100: '#E8BEFF', flood500: '#FF73DF' } as const;
 export const FIRE_LEGEND: [string, string][] = [
@@ -12,7 +14,7 @@ export const LAYER_OPACITY: Partial<Record<MapLayerId, number>> = { flood100: 0.
 let catalogCache: { at: number; value: Promise<MapCatalog> } | null = null;
 export function getCatalog(): Promise<MapCatalog> {
   if (!catalogCache || Date.now() - catalogCache.at > 600000) {
-    const value = fetch('/api/maps/catalog', { signal: AbortSignal.timeout(20000) }).then(async response => {
+    const value = apiFetch('/api/maps/catalog', { signal: AbortSignal.timeout(20000) }).then(async response => {
       if (!response.ok) throw new Error('No se ha podido consultar el catálogo cartográfico.');
       return response.json() as Promise<MapCatalog>;
     });
@@ -26,7 +28,7 @@ export type PointResponse = Omit<PointCheck, 'municipality' | 'provinceCode' | '
 
 /** Queries SNCZI, EFFIS and IGN at one point (coordinates rounded to ~10 m). */
 export async function fetchPoint(lat: number, lon: number): Promise<PointResponse> {
-  const response = await fetch('/api/maps/point', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lat: Number(lat.toFixed(4)), lon: Number(lon.toFixed(4)) }), signal: AbortSignal.timeout(25000) });
+  const response = await apiFetch('/api/maps/point', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lat: Number(lat.toFixed(4)), lon: Number(lon.toFixed(4)) }), signal: AbortSignal.timeout(25000) });
   const body = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(typeof body.error === 'string' ? body.error : 'No se ha podido consultar el punto.');
   return body as PointResponse;
@@ -43,12 +45,14 @@ export function toPointCheck(body: PointResponse, municipality: string, province
 
 export function layerImageUrl(id: MapLayerId, bbox: string, width: number, height: number, catalog: MapCatalog) {
   const date = catalog.layers.find(layer => layer.id === 'fire')?.date;
+  if (STATIC_MODE) return buildMapUrl(id, bbox, width, height, id === 'fire' && date ? date : undefined).href;
   return `/api/maps/image?${new URLSearchParams({ layer: id, bbox, width: String(width), height: String(height), ...(id === 'fire' && date ? { date } : {}) })}`;
 }
 
 function loadImage(url: string) {
   return new Promise<HTMLImageElement | null>(resolve => {
     const image = new Image();
+    image.crossOrigin = 'anonymous';
     image.onload = () => resolve(image.naturalWidth ? image : null);
     image.onerror = () => resolve(null);
     image.src = url;

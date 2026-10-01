@@ -21,6 +21,17 @@ npm start
 
 `npm start` sirve la compilación de `dist`. `PORT` permite cambiar el puerto y `HOST` la interfaz de escucha. Por defecto solo escucha en `127.0.0.1`. Para un despliegue público configura HTTPS, un proxy inverso y límites de peticiones por cliente; la geolocalización requiere HTTPS fuera de localhost. El límite global en memoria de esta versión local no sustituye un control de tráfico de producción.
 
+## Versión pública en GitHub Pages
+
+**https://julianig72.github.io/a-salvo/**
+
+GitHub Pages solo sirve archivos estáticos, así que `npm run build:static` genera una versión sin servidor:
+
+- El navegador consulta directamente CartoCiudad, el IGN, MITECO (SNCZI) y EFFIS. Todos permiten peticiones desde otros dominios (CORS). La lógica es la misma que la del servidor (`server/*-core.ts` y `server/handlers.ts`).
+- Las webs autonómicas no permiten que el navegador las consulte, así que `scripts/check-sources.ts` comprueba su acceso al publicar y lo guarda en `source-status.json`.
+- `.github/workflows/pages.yml` ejecuta las pruebas, compila y publica en cada `push` a `main` y una vez al día, para refrescar la comprobación de fuentes.
+- `E2E_STATIC=1 npx playwright test` prueba la versión estática después de `npm run build:static`.
+
 ## Funcionalidades
 
 - **Municipio validado mientras escribes**: sugerencias a partir de la relación oficial de municipios del INE (8.132 municipios a 1 de enero de 2026, `server/data/municipios-ine-2026.json`), tolerantes a tildes y artículos («rozas» → Las Rozas de Madrid). Solo se puede continuar tras elegir uno de la lista; se guarda su código INE y fija la provincia y el organismo autonómico.

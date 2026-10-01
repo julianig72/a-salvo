@@ -5,6 +5,7 @@ import { getRegion, provinces } from '../shared/regions';
 import { getRegionalRecommendations } from '../shared/regional-advice';
 import type { AddressSuggestion, HomeAddress, Household, MunicipalitySuggestion, OfficialSource, RiskId, SourceCheck } from '../shared/types';
 import { Autocomplete, type FieldStatus } from './Autocomplete';
+import { apiFetch } from './api';
 
 export const riskIcons = { flood: Waves, wildfire: Flame, earthquake: Mountain };
 
@@ -38,7 +39,7 @@ export function LocationFields({ household, update, locate, locating, error }: {
     const requestId = ++resolveRequest.current;
     setStreet(item.label); setResolving(true); setStreetError('');
     try {
-      const response = await fetch('/api/geo/addresses/resolve', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: item.id, type: item.type, municipality: household.municipalityCode }), signal: AbortSignal.timeout(10000) });
+      const response = await apiFetch('/api/geo/addresses/resolve', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: item.id, type: item.type, municipality: household.municipalityCode }), signal: AbortSignal.timeout(10000) });
       const body = await response.json();
       if (!response.ok) throw new Error(typeof body.error === 'string' ? body.error : 'No se ha podido validar la dirección.');
       if (requestId !== resolveRequest.current) return;
@@ -72,7 +73,7 @@ export function LocationFields({ household, update, locate, locating, error }: {
 }
 
 async function getJson<T>(url: string, signal: AbortSignal): Promise<T> {
-  const response = await fetch(url, { signal: AbortSignal.any([signal, AbortSignal.timeout(10000)]) });
+  const response = await apiFetch(url, { signal: AbortSignal.any([signal, AbortSignal.timeout(10000)]) });
   const body = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(typeof body.error === 'string' ? body.error : 'El servicio de búsqueda no está disponible.');
   return body as T;

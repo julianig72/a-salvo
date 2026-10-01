@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "tsx watch server/index.ts",
     "build": "tsc --noEmit && vite build",
+    "build:static": "tsc --noEmit && vite build --mode static && tsx scripts/check-sources.ts",
     "start": "tsx server/index.ts --production",
     "test": "tsx --test tests/*.test.ts",
     "test:e2e": "playwright test"

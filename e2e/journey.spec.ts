@@ -114,6 +114,7 @@ test('móvil sin desbordamiento y con asistente navegable', async ({ page }) => 
 });
 
 test('sin servicio de fuentes, la guía y el usuario reciben un aviso explícito', async ({ page }) => {
+  test.skip(process.env.E2E_STATIC === '1', 'En GitHub Pages las fuentes se comprueban al publicar.');
   await page.route('**/api/sources/check', route => route.abort());
   await page.goto('/');
   await page.getByRole('button', { name: /Crear mi plan familiar/ }).first().click();
