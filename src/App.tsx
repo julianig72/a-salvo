@@ -67,6 +67,8 @@ export default function App() {
   const [household, setHousehold] = useState<Household>({ ...initialHousehold });
   const [plan, setPlan] = useState<PreparedPlan | null>(null);
   const mapCache = useRef<{ key: string; snapshot: MapSnapshot } | null>(null);
+  const mapPending = useRef<{ key: string; promise: Promise<MapSnapshot | undefined> } | null>(null);
+  const [pdfFile, setPdfFile] = useState<{ url: string; filename: string } | null>(null);
   const [pointCheck, setPointCheck] = useState<PointCheck | null>(null);
   const [wizard, setWizard] = useState(false);
   const [generating, setGenerating] = useState(false);
@@ -118,7 +120,7 @@ export default function App() {
 
   useEffect(() => {
     if (!notice) return;
-    const timeout = window.setTimeout(() => setNotice(''), 9000);
+    const timeout = window.setTimeout(() => setNotice(''), notice.startsWith('PDF preparado') ? 30000 : 9000);
     return () => window.clearTimeout(timeout);
   }, [notice]);
 
@@ -247,18 +249,34 @@ export default function App() {
     const point = current.pointCheck && sameMunicipality(current.pointCheck, h) ? current.pointCheck : undefined;
     const key = point ? `point|${point.checkedAt}|${point.lat}|${point.lon}` : `town|${h.provinceCode}|${h.municipalityCode}`;
     if (mapCache.current?.key === key) return mapCache.current.snapshot;
-    let lat = point?.lat, lon = point?.lon;
-    if (!point) {
-      if (!h.municipalityCode) return undefined;
-      const response = await apiFetch('/api/maps/location', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ municipality: h.municipality, municipalityCode: h.municipalityCode, provinceCode: h.provinceCode }), signal: AbortSignal.timeout(16000) });
-      if (!response.ok) return undefined;
-      const found: MapLocation = await response.json();
-      lat = found.lat; lon = found.lon;
-    }
-    const snapshot = await renderHazardSnapshot({ lat: lat!, lon: lon!, marker: Boolean(point), municipality: h.municipality, provinceCode: h.provinceCode, point });
-    mapCache.current = { key, snapshot };
-    return snapshot;
+    if (mapPending.current?.key === key) return mapPending.current.promise;
+    const promise = (async () => {
+      let lat = point?.lat, lon = point?.lon;
+      if (!point) {
+        if (!h.municipalityCode) return undefined;
+        const response = await apiFetch('/api/maps/location', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ municipality: h.municipality, municipalityCode: h.municipalityCode, provinceCode: h.provinceCode }), signal: AbortSignal.timeout(16000) });
+        if (!response.ok) return undefined;
+        const found: MapLocation = await response.json();
+        lat = found.lat; lon = found.lon;
+      }
+      const snapshot = await renderHazardSnapshot({ lat: lat!, lon: lon!, marker: Boolean(point), municipality: h.municipality, provinceCode: h.provinceCode, point });
+      mapCache.current = { key, snapshot };
+      return snapshot;
+    })();
+    mapPending.current = { key, promise };
+    try { return await promise; }
+    finally { if (mapPending.current?.promise === promise) mapPending.current = null; }
   };
+
+  // Prepare the PDF map and module ahead of time so the download starts right after the click;
+  // some browsers (Safari, embedded viewers) block downloads that start seconds after the user gesture.
+  useEffect(() => {
+    if (!plan || (page !== 'plan' && page !== 'kit')) return;
+    const timer = window.setTimeout(() => { void import('./pdf'); planMap(plan).catch(() => undefined); }, 400);
+    return () => window.clearTimeout(timer);
+  }, [plan, page]);
+
+  useEffect(() => () => { if (pdfFile) URL.revokeObjectURL(pdfFile.url); }, [pdfFile]);
 
   const download = async () => {
     if (!plan || !personal) return;
@@ -267,7 +285,7 @@ export default function App() {
       const { downloadPlanPdf } = await import('./pdf');
       let map: MapSnapshot | undefined;
       try { map = await planMap(plan); } catch { map = undefined; }
-      downloadPlanPdf(plan, { checkedKit, checkedTasks }, map);
+      setPdfFile(downloadPlanPdf(plan, { checkedKit, checkedTasks }, map));
       setNotice(map ? 'PDF preparado con tus prioridades, el mapa de peligros de tu zona, el plan de comunicación, el kit y las referencias oficiales.' : 'PDF preparado. No se ha podido generar el mapa de peligros; consulta los visores oficiales.');
     } catch { setNotice('No se ha podido generar el PDF. Inténtalo de nuevo; tu guía sigue disponible en pantalla.'); }
     finally { setPdfLoading(false); }
@@ -430,6 +448,6 @@ export default function App() {
     <footer className="site-footer"><div><span className="brand small"><span className="brand-mark"><ShieldCheck size={14} /></span>a salvo</span><span className="muted">Iniciativa independiente · Contenido {CONTENT_VERSION}</span></div><nav aria-label="Pie de página"><button onClick={() => navigate('help')}>Ayuda y privacidad</button><button onClick={() => navigate('sources')}><BookOpen size={14} />Fuentes</button></nav></footer>
     {wizard && <Wizard household={household} update={update} close={() => setWizard(false)} generate={generate} generating={generating} locate={locate} locating={locating} locationError={locationError} mapSuggested={mapSuggested}
       mapSlot={<ZoneMap compact municipality={household.municipality} municipalityCode={household.municipalityCode} provinceCode={household.provinceCode} home={household.address} onPoint={attachPoint} point={pointCheck} />} />}
-    {notice && <div className="toast" role="status"><Info size={18} /><span>{notice}</span><button aria-label="Cerrar mensaje" className="icon-button" onClick={() => setNotice('')}><X size={16} /></button></div>}
+    {notice && <div className="toast" role="status"><Info size={18} /><span>{notice}{pdfFile && notice.startsWith('PDF preparado') && <> <a href={pdfFile.url} download={pdfFile.filename} target="_blank" rel="noopener">Si no se ha descargado, ábrelo aquí.</a></>}</span><button aria-label="Cerrar mensaje" className="icon-button" onClick={() => setNotice('')}><X size={16} /></button></div>}
   </div>;
 }

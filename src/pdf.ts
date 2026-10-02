@@ -246,7 +246,15 @@ export function buildPlanPdf(plan: PreparedPlan, progress: PdfProgress = { check
   return doc;
 }
 
-export function downloadPlanPdf(plan: PreparedPlan, progress: PdfProgress, map?: MapSnapshot) {
+export interface PdfFile { url: string; filename: string }
+
+/** Starts the download and returns the blob URL so the UI can offer a manual link if the browser blocks it. */
+export function downloadPlanPdf(plan: PreparedPlan, progress: PdfProgress, map?: MapSnapshot): PdfFile {
   const name = plan.household.municipality.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9-]/g, '-').replace(/-+/g, '-');
-  buildPlanPdf(plan, progress, map).save(`a-salvo-${name || 'mi-hogar'}.pdf`);
+  const filename = `a-salvo-${name || 'mi-hogar'}.pdf`;
+  const url = URL.createObjectURL(buildPlanPdf(plan, progress, map).output('blob'));
+  const link = document.createElement('a');
+  link.href = url; link.download = filename; link.rel = 'noopener'; link.hidden = true;
+  document.body.appendChild(link); link.click(); link.remove();
+  return { url, filename };
 }
